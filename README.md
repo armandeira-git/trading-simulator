@@ -12,12 +12,32 @@ Simulador de ordens de compra e venda de ações em tempo real, inspirado no fun
 ## Arquitetura
 
 ```
-Producer (.NET) → Kafka (tópico: orders) → Consumer (.NET) → MySQL
+HTTP POST → API .NET → Kafka (tópico: orders) → Consumer .NET → MySQL
 ```
 
-- **Producer**: simula um trader enviando ordens de compra/venda
+- **API**: recebe ordens via HTTP REST e publica no Kafka
 - **Kafka**: garante entrega e processamento assíncrono das ordens
 - **Consumer**: processa cada ordem e persiste no banco de dados
+
+## Endpoints
+
+### Enviar ordem
+```
+POST http://localhost:5005/orders
+```
+```json
+{
+  "Ticker": "VALE3",
+  "Type": "BUY",
+  "Quantity": 200,
+  "Price": 68.90
+}
+```
+
+### Verificar API
+```
+GET http://localhost:5005/
+```
 
 ## Como rodar localmente
 
@@ -36,13 +56,21 @@ cd Consumer
 dotnet run
 ```
 
-### 3. Rode o Producer (terminal 2)
+### 3. Rode a API (terminal 2)
 ```bash
-cd Producer
+cd Api
 dotnet run
 ```
 
-### 4. Verifique no banco
+### 4. Envie uma ordem (terminal 3)
+```powershell
+Invoke-WebRequest -Uri "http://localhost:5005/orders" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"Ticker":"VALE3","Type":"BUY","Quantity":200,"Price":68.90}'
+```
+
+### 5. Verifique no banco
 ```sql
 SELECT * FROM trading.orders;
 ```
@@ -52,8 +80,8 @@ SELECT * FROM trading.orders;
 ```
 trading-simulator/
 ├── docker-compose.yml
-├── Producer/
-│   ├── Producer.csproj
+├── Api/
+│   ├── Api.csproj
 │   └── Program.cs
 ├── Consumer/
 │   ├── Consumer.csproj
@@ -64,7 +92,7 @@ trading-simulator/
 
 ## Próximos passos
 
-- [ ] API REST com .NET Minimal API para receber ordens via HTTP
+- [x] API REST com .NET Minimal API para receber ordens via HTTP
 - [ ] Validação de saldo antes de processar ordens
 - [ ] Múltiplos tópicos Kafka (orders, processed, rejected)
 - [ ] Containerizar Producer e Consumer no Docker
