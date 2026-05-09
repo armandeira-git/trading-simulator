@@ -9,6 +9,12 @@ Simulador de ordens de compra e venda de ações em tempo real, inspirado no fun
 - MySQL 8 (persistência)
 - Docker + Docker Compose (infraestrutura)
 
+## Conceitos aplicados
+
+- **Arquitetura orientada a eventos (EDA)** — sistemas se comunicam via eventos no Kafka, sem dependência direta entre si
+- **Baixo acoplamento** — o Consumer publica eventos nos tópicos `processed` e `rejected` sem saber quem vai consumi-los
+- **Microsserviços** — API, Consumer e infraestrutura são componentes independentes com responsabilidades separadas
+
 ## Arquitetura
 
 ```
@@ -16,9 +22,17 @@ HTTP POST /orders
     → API .NET
         → Kafka (tópico: orders)
             → Consumer verifica saldo
-                ✅ Saldo OK  → debita + salva ordem
-                ❌ Insuficiente → rejeita ordem
+                ✅ Saldo OK  → debita + salva ordem → Kafka (tópico: processed)
+                ❌ Insuficiente → rejeita ordem     → Kafka (tópico: rejected)
 ```
+
+## Tópicos Kafka
+
+| Tópico | Descrição |
+|--------|-----------|
+| `orders` | Entrada de todas as ordens recebidas pela API |
+| `processed` | Ordens aprovadas após validação de saldo |
+| `rejected` | Ordens rejeitadas por saldo insuficiente |
 
 ## Funcionalidades
 
@@ -27,6 +41,7 @@ HTTP POST /orders
 - Validação de saldo antes de processar compras
 - Débito automático do saldo após aprovação
 - Rejeição automática de ordens sem saldo suficiente
+- Roteamento de eventos para tópicos específicos
 - Persistência no MySQL
 
 ## Endpoints
@@ -88,7 +103,16 @@ Invoke-WebRequest -Uri "http://localhost:5005/orders" `
   -Body '{"Ticker":"PETR4","Type":"BUY","Quantity":1000,"Price":50.00}'
 ```
 
-### 6. Verifique no banco
+### 6. Monitore os tópicos em tempo real
+```powershell
+# Ordens aprovadas
+docker exec -it trading-simulator-kafka-1 kafka-console-consumer --bootstrap-server localhost:9092 --topic processed --from-beginning
+
+# Ordens rejeitadas
+docker exec -it trading-simulator-kafka-1 kafka-console-consumer --bootstrap-server localhost:9092 --topic rejected --from-beginning
+```
+
+### 7. Verifique no banco
 ```sql
 SELECT * FROM trading.orders;
 SELECT * FROM trading.wallets;
@@ -113,5 +137,5 @@ trading-simulator/
 
 - [x] API REST com .NET Minimal API para receber ordens via HTTP
 - [x] Validação de saldo antes de processar ordens de compra
-- [ ] Múltiplos tópicos Kafka (orders, processed, rejected)
+- [x] Múltiplos tópicos Kafka (orders, processed, rejected)
 - [ ] Containerizar API e Consumer no Docker
