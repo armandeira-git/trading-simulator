@@ -12,12 +12,22 @@ Simulador de ordens de compra e venda de ações em tempo real, inspirado no fun
 ## Arquitetura
 
 ```
-HTTP POST → API .NET → Kafka (tópico: orders) → Consumer .NET → MySQL
+HTTP POST /orders
+    → API .NET
+        → Kafka (tópico: orders)
+            → Consumer verifica saldo
+                ✅ Saldo OK  → debita + salva ordem
+                ❌ Insuficiente → rejeita ordem
 ```
 
-- **API**: recebe ordens via HTTP REST e publica no Kafka
-- **Kafka**: garante entrega e processamento assíncrono das ordens
-- **Consumer**: processa cada ordem e persiste no banco de dados
+## Funcionalidades
+
+- Envio de ordens via HTTP POST
+- Publicação no Kafka em tempo real
+- Validação de saldo antes de processar compras
+- Débito automático do saldo após aprovação
+- Rejeição automática de ordens sem saldo suficiente
+- Persistência no MySQL
 
 ## Endpoints
 
@@ -29,7 +39,7 @@ POST http://localhost:5005/orders
 {
   "Ticker": "VALE3",
   "Type": "BUY",
-  "Quantity": 200,
+  "Quantity": 100,
   "Price": 68.90
 }
 ```
@@ -62,17 +72,26 @@ cd Api
 dotnet run
 ```
 
-### 4. Envie uma ordem (terminal 3)
+### 4. Envie uma ordem válida
 ```powershell
 Invoke-WebRequest -Uri "http://localhost:5005/orders" `
   -Method POST `
   -ContentType "application/json" `
-  -Body '{"Ticker":"VALE3","Type":"BUY","Quantity":200,"Price":68.90}'
+  -Body '{"Ticker":"VALE3","Type":"BUY","Quantity":100,"Price":68.90}'
 ```
 
-### 5. Verifique no banco
+### 5. Envie uma ordem inválida (saldo insuficiente)
+```powershell
+Invoke-WebRequest -Uri "http://localhost:5005/orders" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"Ticker":"PETR4","Type":"BUY","Quantity":1000,"Price":50.00}'
+```
+
+### 6. Verifique no banco
 ```sql
 SELECT * FROM trading.orders;
+SELECT * FROM trading.wallets;
 ```
 
 ## Estrutura do projeto
@@ -93,6 +112,6 @@ trading-simulator/
 ## Próximos passos
 
 - [x] API REST com .NET Minimal API para receber ordens via HTTP
-- [ ] Validação de saldo antes de processar ordens
+- [x] Validação de saldo antes de processar ordens de compra
 - [ ] Múltiplos tópicos Kafka (orders, processed, rejected)
-- [ ] Containerizar Producer e Consumer no Docker
+- [ ] Containerizar API e Consumer no Docker
