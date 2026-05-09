@@ -2,15 +2,21 @@
 using MySql.Data.MySqlClient;
 using System.Text.Json;
 
-var kafkaConfig = new ConsumerConfig {
+var consumerConfig = new ConsumerConfig {
     BootstrapServers = "localhost:9092",
-    GroupId = "trading-group-3",
-    AutoOffsetReset = AutoOffsetReset.Earliest
+    GroupId = "trading-group-4",
+    AutoOffsetReset = AutoOffsetReset.Latest
+};
+
+var producerConfig = new ProducerConfig {
+    BootstrapServers = "localhost:9092"
 };
 
 var connStr = "Server=localhost;Database=trading;Uid=root;Pwd=root;";
 
-using var consumer = new ConsumerBuilder<Ignore, string>(kafkaConfig).Build();
+using var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build();
+using var producer = new ProducerBuilder<Null, string>(producerConfig).Build();
+
 consumer.Subscribe("orders");
 
 Console.WriteLine("Consumer aguardando mensagens...");
@@ -36,7 +42,17 @@ while (true) {
         var balance = (decimal)balanceCmd.ExecuteScalar();
 
         if (balance < total) {
-            Console.WriteLine($"Saldo insuficiente! Saldo: R$ {balance:F2} | Necessario: R$ {total:F2}");
+            Console.WriteLine($"❌ Saldo insuficiente! Saldo: R$ {balance:F2} | Necessario: R$ {total:F2}");
+
+            // Publica no tópico rejected
+            await producer.ProduceAsync("rejected", new Message<Null, string> {
+                Value = JsonSerializer.Serialize(new {
+                    Ticker = ticker, Type = type, Quantity = quantity,
+                    Price = price, Reason = "Saldo insuficiente",
+                    Saldo = balance, Necessario = total
+                })
+            });
+
             continue;
         }
 
@@ -45,7 +61,7 @@ while (true) {
         debitCmd.Parameters.AddWithValue("@total", total);
         debitCmd.Parameters.AddWithValue("@owner", owner);
         debitCmd.ExecuteNonQuery();
-        Console.WriteLine($"Saldo debitado: R$ {total:F2}");
+        Console.WriteLine($"💰 Saldo debitado: R$ {total:F2}");
     }
 
     var insertCmd = new MySqlCommand(
@@ -55,5 +71,14 @@ while (true) {
     insertCmd.Parameters.AddWithValue("@q",  quantity);
     insertCmd.Parameters.AddWithValue("@p",  price);
     insertCmd.ExecuteNonQuery();
-    Console.WriteLine($"Ordem processada: {ticker} {type} {quantity}x R$ {price:F2}");
+
+    // Publica no tópico processed
+    await producer.ProduceAsync("processed", new Message<Null, string> {
+        Value = JsonSerializer.Serialize(new {
+            Ticker = ticker, Type = type, Quantity = quantity,
+            Price = price, Status = "PROCESSED"
+        })
+    });
+
+    Console.WriteLine($"✅ Ordem processada: {ticker} {type} {quantity}x R$ {price:F2}");
 }
