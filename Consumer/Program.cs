@@ -9,10 +9,10 @@ var consumerConfig = new ConsumerConfig {
 };
 
 var producerConfig = new ProducerConfig {
-    BootstrapServers = "localhost:9092"
+    BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP") ?? "localhost:9092"
 };
 
-var connStr = "Server=localhost;Database=trading;Uid=root;Pwd=root;";
+var connStr = Environment.GetEnvironmentVariable("MYSQL_CONN") ?? "Server=localhost;Database=trading;Uid=root;Pwd=root;";
 
 using var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build();
 using var producer = new ProducerBuilder<Null, string>(producerConfig).Build();

@@ -5,7 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 var kafkaConfig = new ProducerConfig {
-    BootstrapServers = "localhost:9092"
+    BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP") ?? "localhost:9092"
 };
 
 app.MapPost("/orders", async (Order order) =>

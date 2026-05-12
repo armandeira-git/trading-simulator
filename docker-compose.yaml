@@ -14,7 +14,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
@@ -27,3 +27,19 @@ services:
       MYSQL_DATABASE: trading
     volumes:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  api:
+    build: ./Api
+    ports:
+      - "5005:5005"
+    depends_on: [kafka]
+    environment:
+      ASPNETCORE_URLS: http://+:5005
+      KAFKA_BOOTSTRAP: kafka:9092
+
+  consumer:
+    build: ./Consumer
+    depends_on: [kafka, mysql]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      MYSQL_CONN: Server=mysql;Database=trading;Uid=root;Pwd=root;
